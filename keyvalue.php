@@ -44,8 +44,6 @@ $dir = dirname(__FILE__) . '/';
 $wgAutoloadClasses['SpecialKeyValue'] = $dir . 'keyvalue_body.php'; 
 # Location of the messages file
 $wgExtensionMessagesFiles['KeyValue'] = $dir . 'keyvalue.i18n.php'; 
-# Location of the alias file
-$wgExtensionAliasesFiles['KeyValue'] = $dir . 'keyvalue.alias.php'; 
 # Register the special page and it's class
 $wgSpecialPages['KeyValue'] = 'SpecialKeyValue'; 
 # Set the group for the special page
