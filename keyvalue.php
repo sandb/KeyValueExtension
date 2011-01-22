@@ -1,5 +1,5 @@
 <?php
-# MediaWiki KeyValue extension v0.2
+# MediaWiki KeyValue extension v0.1
 #
 # Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
 #
@@ -10,8 +10,6 @@
 # require_once( "$IP/extensions/keyvalue/keyvalue.php" );
 # to the bottom of your LocalSettings.php
 # The required table structure should be auto-created on first use.
-#
-# requires PHP 5
 
 # Alert the user that this is not a valid entry point to MediaWiki 
 # if they try to access the special pages or extension file directly.
@@ -41,7 +39,7 @@ $wgHooks['ArticleDeleteComplete'][] = 'keyValueDeleteComplete';
 # Special page initialisations
 $dir = dirname(__FILE__) . '/';
 # Location of the SpecialKeyValue class
-$wgAutoloadClasses['SpecialKeyValue'] = $dir . 'keyvalue_body.php'; 
+$wgAutoloadClasses['SpecialKeyValue'] = $dir . 'keyvalue.body.php'; 
 # Location of the messages file
 $wgExtensionMessagesFiles['KeyValue'] = $dir . 'keyvalue.i18n.php'; 
 # Register the special page and it's class

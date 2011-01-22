@@ -1,12 +1,29 @@
 <?php
+# MediaWiki KeyValue extension v0.1
+#
+# Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
+#
+# Released under GNU LGPL
 
+/**
+ * Special page implementation for the KeyValue extension
+ */
 class SpecialKeyValue extends SpecialPage {
 
+	/**
+	 * Constructor.
+	 */
 	public function __construct() {
 		parent::__construct( 'KeyValue' );
 		wfLoadExtensionMessages('KeyValue');
 	}
  
+ 	/**
+	 * execute implementation. Depending on url, will either
+	 * do the main page, a specific category, or a csv file.
+	 *
+	 * @param $par The name of the subpage if present.
+	 */
 	public function execute( $par ) {
 		global $wgRequest, $wgOut;
  
@@ -22,30 +39,51 @@ class SpecialKeyValue extends SpecialPage {
 		}
 
 		return $this->executeCategoryPage($par);
-		
-
 	}
 
+	/**
+	 * Renders the main special page, renders a list of used
+	 * categories.
+	 */
 	public function executeMainPage() {
 		global $wgOut;
 		$wgOut->addWikiText( wfMsg( 'available_categories' ) );
 		$categories = keyValueGetCategories();
 		foreach ( $categories as $category ) {
 			$line = '* [[';
-			$line .= $this->getTitle($category->category);
+			$line .= $this->getTitle( $category->category );
 			$line .= '|';
 			$line .= $category->category;
 			$line .= ']] (';
 			$line .= $category->count;
-			$line .= ' values)';
+			$line .= ' ';
+			$line .= wfMsg( 'values' );
+			$line .= ')';
 			$wgOut->addWikiText( $line );
 		}
-		$wgOut->setPageTitle("KeyValue categories");
+		$wgOut->setPageTitle( wfMsg( 'keyvalue_categories' ) );
 	}
 
-	public function executeCategoryPage($category) {
+	/**
+	 * Renders the page for a specific category.
+	 *
+	 * @param $category The category to render
+	 */
+	public function executeCategoryPage( $category ) {
 		global $wgOut;
-		$kvis = keyValueGetByCategory($category);
+
+		$parentLink = substr( $this->getTitle( $category ), 0, - strlen( $category) - 1 );
+		$csvLink = $this->getTitle( $category )->getFullURL( array( "csv" => "true" ) );
+		
+		$line = wfMsg( 'download_category_as' );
+		$line .= ' [';
+		$line .= $csvLink;
+		$line .= ' ';
+		$line .= wfMsg( 'csv_file' );
+		$line .= '].';
+		$wgOut->addWikiText( $line );
+		
+		$kvis = keyValueGetByCategory( $category );
 		foreach ( $kvis as $kvi ) {
 			$line = '* ';
 			$line .= $kvi->key;
@@ -53,9 +91,22 @@ class SpecialKeyValue extends SpecialPage {
 			$line .= $kvi->value;
 			$wgOut->addWikiText( $line );
 		}
-		$wgOut->setPageTitle("KeyValues for \"$category\"");
+		
+		$line = wfMsg( 'return' );
+		$line .= ' [[';
+		$line .= $parentLink;
+		$line .= ']]';
+		$wgOut->addWikiText( $line );
+
+		$wgOut->setPageTitle( wfMsg( 'keyvalues_for' ) . " \"$category\"" );
 	}
 
+	/**
+	 * Returns a csv file that gets downloaded for the specified
+	 * category.
+	 * 
+	 * @param $category The category for the csv file
+	 */
 	public function executeCategoryCsv( $category ) {
 		global $wgOut, $wgRequest;
 
