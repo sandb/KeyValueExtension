@@ -38,8 +38,21 @@ $wgHooks['LanguageGetMagic'][] = 'keyValueLanguageGetMagic';
 $wgHooks['ArticleSaveComplete'][] = 'keyValueSaveComplete';
 $wgHooks['ArticleDeleteComplete'][] = 'keyValueDeleteComplete';
 
+# Special page initialisations
+$dir = dirname(__FILE__) . '/';
+# Location of the SpecialKeyValue class
+$wgAutoloadClasses['SpecialKeyValue'] = $dir . 'keyvalue_body.php'; 
+# Location of the messages file
+$wgExtensionMessagesFiles['KeyValue'] = $dir . 'keyvalue.i18n.php'; 
+# Location of the alias file
+$wgExtensionAliasesFiles['KeyValue'] = $dir . 'keyvalue.alias.php'; 
+# Register the special page and it's class
+$wgSpecialPages['KeyValue'] = 'SpecialKeyValue'; 
+# Set the group for the special page
+$wgSpecialPageGroups['KeyValue'] = 'other';
+
 /**
- * Implements the initialisation of the extension. Is connected
+ * Implements the initialisation of the extension for parsing. Is connected
  * to the ParserFirstCallInit hook.
  *
  * @return true
@@ -304,6 +317,65 @@ function keyValueStore( $dbw, $articleId, $keyValues ) {
 		);
 	}
 	$dbw->commit();
+}
+
+
+/**
+ * Returns the list of categories in use in the wiki.
+ *
+ * @return array of category objects having ::category and ::count fields.
+ */
+function keyValueGetCategories() {
+	$result = array();
+	$dbr = wfGetDB( DB_SLAVE );
+	
+	$res = $dbr->select(
+		$dbr->tableName( KEYVALUE_TABLE ),
+		array( "category", "count(category) as count" ),
+		'',
+		'keyValueGetCategories',
+		array( "GROUP BY" => "category" )
+	);
+
+	if ( !$res ) {
+		return $result;
+	}
+
+	while ( $row = $dbr->fetchObject( $res ) ) {
+		$result[] = $row;
+	}
+
+	return $result;
+}
+
+/**
+ * Returns all key-values for a given category. Results are 
+ * returned as an array of KeyValueInstance objects. No results
+ * will return an empty array.
+ *
+ * @param $category The category for which to return values.
+ * @return an array of KeyValueInstance objects.
+ */
+function keyValueGetByCategory($category) {
+	$result = array();
+	$dbr = wfGetDB( DB_SLAVE );
+	
+	$res = $dbr->select(
+		$dbr->tableName( KEYVALUE_TABLE ),
+		array( 'category', 'key', 'value' ),
+		array( "category == \"$category\"" ),
+		'keyValueGetByCategory'
+	);
+
+	if ( !$res ) {
+		return $result;
+	}
+
+	while ( $row = $dbr->fetchRow( $res ) ) {
+		$result[] = new KeyValueInstance($category, $row['key'], $row['value']);
+	}
+
+	return $result;
 }
 
 /**

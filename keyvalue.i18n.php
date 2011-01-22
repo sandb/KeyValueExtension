@@ -2,5 +2,6 @@
 $messages = array();
  
 $messages['en'] = array(
-	'myextension' => 'My Extension',
+	'keyvalue' => 'KeyValue',
+	'available_categories' => 'The following categories are currently in use:'
 );
