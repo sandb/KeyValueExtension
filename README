@@ -1,0 +1,21 @@
+                 _  __             ____     __    _            
+                | |/ /___ _   _   / /\ \   / /_ _| |_   _  ___ 
+                | ' // _ \ | | | / /  \ \ / / _` | | | | |/ _ \
+                | . \  __/ |_| |/ /    \ V / (_| | | |_| |  __/
+                |_|\_\___|\__, /_/      \_/ \__,_|_|\__,_|\___|
+                          |___/                                
+
+                        KeyValue MediaWiki extension
+
+KeyValue is an extension that allows you to store one or more key/values on a 
+mediawiki page by using the keyvalue function. The extension is also focussed 
+on keeping it simple, and tries to cover a minimal set of functionality.
+
+The values are not typed and stored as text in a table in the database. A 
+value is stored for a certain key and a certain category.
+
+You can access all categories through a special page, and all key/values for a 
+specific category through a subpage of that special page. You can also download 
+the key/values for a specific category as a csv file.
+
+For more documentation, see: http://www.mediawiki.org/wiki/Extension:KeyValue
