@@ -20,6 +20,7 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 
 /** Tablename define. */
 define( "KEYVALUE_TABLE", "keyvalue" );
+define( "KEYVALUE_INDEX", "keyvalueindex" );
 
 # Extension info
 $wgExtensionCredits['parserhook'][] = array(
@@ -93,8 +94,7 @@ function keyValueLanguageGetMagic( &$magicWords, $langCode ) {
  */
 function keyValueSaveComplete( &$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision, &$status, $baseRevId ) {
 	$kvs = keyValueGetValues( $text );
-	$kvs = keyValueMakeUnique( $kvs );
-	keyValueDbTry( 'keyValueStore', $article->getID(), $kvs);
+	keyValueStore( $article->getID(), $kvs);
 	return true;
 }
 
@@ -108,7 +108,7 @@ function keyValueSaveComplete( &$article, &$user, $text, $summary, $minoredit, $
  * @return true 
  */
 function keyValueDeleteComplete( &$article, &$user, $reason, $id ) {
-	keyValueDbTry( 'keyValueStore', $article->getID());
+	keyValueStore( $article->getID());
 	return true;
 }
 
@@ -212,49 +212,25 @@ function keyValueGetValues( &$text ) {
 }
 
 /**
- * Prevents any duplicate keys (category, key) in the array.
- *
- * @param $keyValues an array of KeyValueInstance objects
- * @return an array of keyValueInstance objects that contain no duplicate keys.
- */
-function keyValueMakeUnique( $keyValues ) {
-	$result = array();
-	if ( count( $keyValues ) === 0 ) {
-		return $result;
-	}
-
-	usort($keyValues, array('KeyValueInstance', 'compareKey'));
-
-	$last = array_shift( $keyValues );
-	$result[] = $last;
-	foreach ($keyValues as $kv) {
-		if ( KeyValueInstance::compareKey( $last, $kv ) === 0 ) {
-			continue;
-		}
-		$last = $kv;
-		$result[] = $last;
-	}
-
-	return $result;
-}
-
-/**
  * Wrapper for database functions, that will try to auto-create the 
  * keyvalue table and call the supplied function a second time, if
  * an error occured. This causes this extension to have auto-create 
  * table functionality without any performance penalty.
  *
  * @param $function The function to call. Should have at least expect a database as first parameter.
+ * @param integer $db Index of the connection to get. Same as for wfGetDB, either DB_MASTER or DB_SLAVE
  * @param ... Any extra parameters will be passed on to the supplied function
  * @return The result of the function called.
  */
-function keyValueDbTry($function) {
+function keyValueDbTry($function, $db) {
 
-	# get extra arguments and replace the first one (the 
-	# function) with the database.
+	$dbw = wfGetDB( $db );
+
+	# Get all params from the function as an array. Remove two parameters at the 
+	# front ($function and $db) and add the database link.
 	$args = func_get_args();
-	$dbw = wfGetDB( DB_MASTER );
-	$args[0] = $dbw;
+	$args = array_slice( $args, 2 );
+	$args = array_merge( array( $dbw ), $args );
 
 	# set the db to ignore errors
 	$oldIgnore = $dbw->ignoreErrors( true );
@@ -264,6 +240,20 @@ function keyValueDbTry($function) {
 	
 	# if an error occured, try again, after trying to create the table
 	if ( $dbw->lastErrno() ) {
+
+		# This is weird, but the only way i found to reset the error state of the database:
+		# the loadbalancer is returned by wfGetLB, and this instance manages connections to
+		# the database. We close the current connection to the database by calling it's
+		# "closeConnecton" (yes, with a spelling error) to remove the connection from it's
+		# pool. After that we again ask for a connection to the db, and a new, error-state
+		# free connection is created.
+		wfGetLB()->closeConnecton($dbw);
+		$dbw = wfGetDB( $db );
+		$args[0] = $dbw;
+		
+		# since new connection; reset the new db connection to ignore errors again
+		$oldIgnore = $dbw->ignoreErrors( true );
+
 		# on error, maybe the table had not yet been created, 
 		# so try to auto-create table 
 		keyValueCreateTable( $dbw );
@@ -290,13 +280,25 @@ function keyValueDbTry($function) {
 /**
  * Writes an array of keyValue instances to the database. Autocreates the
  * table if it's missing. Any keyvalues store for the specified article id
+ * will be deleted if no longer present. Autocreates table if missing.
+ * 
+ * @param $articleId The id of the article to register the keyvalues under
+ * @param $keyValues An array of zero or more keyvalues to write to the db.
+ */
+function keyValueStore( $articleId, $keyValues = array() ) {
+	return keyValueDbTry( 'keyValueStoreFromDb', DB_MASTER, $articleId, $keyValues );
+}
+
+/**
+ * Writes an array of keyValue instances to the database. Autocreates the
+ * table if it's missing. Any keyvalues store for the specified article id
  * will be deleted if no longer present.
  * 
  * @param $dbw The database to write to
  * @param $articleId The id of the article to register the keyvalues under
  * @param $keyValues An array of zero or more keyvalues to write to the db.
  */
-function keyValueStore( $dbw, $articleId, $keyValues ) {
+function keyValueStoreFromDb( $dbw, $articleId, $keyValues ) {
 	$dbw->begin();
 	$dbw->delete( 
 		$dbw->tableName( KEYVALUE_TABLE ), 
@@ -316,15 +318,25 @@ function keyValueStore( $dbw, $articleId, $keyValues ) {
 	$dbw->commit();
 }
 
-
 /**
- * Returns the list of categories in use in the wiki.
+ * Returns the list of categories in use in the wiki. Autocreates table if missing.
  *
  * @return array of category objects having ::category and ::count fields.
  */
 function keyValueGetCategories() {
+	return keyValueDbTry( 'keyValueGetCategoriesFromDb', DB_SLAVE );
+}
+
+/**
+ * Returns the list of categories in use in the wiki.
+ *
+ * @param $dbr The database to read from
+ * @return array of category objects having ::category and ::count fields.
+ */
+function keyValueGetCategoriesFromDb( $dbr ) {
+
 	$result = array();
-	$dbr = wfGetDB( DB_SLAVE );
+	# $dbr = wfGetDB( DB_SLAVE );
 	
 	$res = $dbr->select(
 		$dbr->tableName( KEYVALUE_TABLE ),
@@ -348,14 +360,27 @@ function keyValueGetCategories() {
 /**
  * Returns all key-values for a given category. Results are 
  * returned as an array of KeyValueInstance objects. No results
- * will return an empty array.
+ * will return an empty array. Autocreates table if missing.
  *
  * @param $category The category for which to return values.
  * @return an array of KeyValueInstance objects.
  */
-function keyValueGetByCategory($category) {
+function keyValueGetByCategory( $category ) {
+	return keyValueDbTry( 'keyValueGetByCategoryFromDb', DB_SLAVE, $category );
+}
+
+/**
+ * Returns all key-values for a given category. Results are 
+ * returned as an array of KeyValueInstance objects. No results
+ * will return an empty array.
+ *
+ * @param $dbr The database to read from
+ * @param $category The category for which to return values.
+ * @return an array of KeyValueInstance objects.
+ */
+function keyValueGetByCategoryFromDb( $dbr, $category ) {
 	$result = array();
-	$dbr = wfGetDB( DB_SLAVE );
+	#$dbr = wfGetDB( DB_SLAVE );
 	
 	$res = $dbr->select(
 		$dbr->tableName( KEYVALUE_TABLE ),
@@ -381,28 +406,17 @@ function keyValueGetByCategory($category) {
  * @param $dbw The database to create the table in
  */
 function keyValueCreateTable( $dbw ) {
-	$sql = 'CREATE TABLE ';
-	$sql .= $dbw->tableName( KEYVALUE_TABLE );
-	$sql .= ' ( article_id INT, category VARCHAR(255), key VARCHAR(255), value TEXT, PRIMARY KEY(article_id, category, key))';
-	$dbw->begin();
-	$dbw->query($sql);
-	$dbw->commit();
-}
 
-/**
- * Helper function, turns an array of keyValueInstances into a printable
- * string.
- *
- * @param &$keyValueInstanceArray an array of keyValueInstance objects
- * @return a string 
- */
-function keyValueIaToString( &$keyValueInstanceArray ) {
-	$result = array(); 
-	foreach ( $keyValueInstanceArray as $kv ) {
-		$result[] = $kv->toString();
-	}
-	$result = 'Size: ' . count( $keyValueInstanceArray ) . ' - ' . implode( ', ', $result );
-	return $result;
+	$tablename = $dbw->tableName( KEYVALUE_TABLE );
+	$indexname = $dbw->tableName( KEYVALUE_INDEX );
+
+	$tablesql = "CREATE TABLE $tablename ( article_id INT, category VARCHAR(255), key VARCHAR(255), value TEXT)";
+	$indexsql = "CREATE INDEX $indexname on $tablename (article_id, category)";
+
+	$dbw->begin();
+	$dbw->query($tablesql);
+	$dbw->query($indexsql);
+	$dbw->commit();
 }
 
 ?>
