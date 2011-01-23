@@ -14,7 +14,8 @@
 # Alert the user that this is not a valid entry point to MediaWiki 
 # if they try to access the special pages or extension file directly.
 if ( !defined( 'MEDIAWIKI' ) ) {
-	die( 'This is not a valid entry point to MediaWiki.' );
+	echo ( 'This is not a valid entry point to MediaWiki.' );
+	exit ( 1 );
 }
 
 /** Tablename define. */
@@ -56,12 +57,12 @@ $wgSpecialPageGroups['KeyValue'] = 'other';
 function keyValueParserFirstCallInit() {
 	global $IP, $wgParser, $wgHooks, $keyValueData, $wgMessageCache;
 	require_once($IP . "/includes/SpecialPage.php");
-	$wgParser->setFunctionHook('define', 'keyValueRender');
+	$wgParser->setFunctionHook('keyvalue', 'keyValueRender');
 	return true;
 }
 
 /**
- * Registers the magic words for this extions (in this case 'define').
+ * Registers the magic words for this extions (in this case 'keyvalue').
  * Is connected to the LanguageGetMagic hook.
  *
  * @param $magicWords The magicWords array
@@ -69,7 +70,7 @@ function keyValueParserFirstCallInit() {
  * @return true
  */
 function keyValueLanguageGetMagic( &$magicWords, $langCode ) {
-	$magicWords['define'] = array( 0, 'define' );
+	$magicWords['keyvalue'] = array( 0, 'keyvalue' );
 	return true;
 }
  
@@ -113,7 +114,7 @@ function keyValueDeleteComplete( &$article, &$user, $reason, $id ) {
 
 /**
  * Renders the keyvalue function, returns the value back as the result.
- * Is connected to the parser as the render function for the "define"
+ * Is connected to the parser as the render function for the "keyvalue"
  * magic word.
  *
  * @param $parser The parser instance
@@ -190,7 +191,7 @@ class KeyValueInstance {
  */
 function keyValueGetValues( &$text ) {
 	$result = array();
-	preg_match_all( '/{{\s*#define:\s*([^}]*)\s*}}/', $text, $matches, PREG_SET_ORDER );
+	preg_match_all( '/{{\s*#keyvalue:\s*([^}]*)\s*}}/', $text, $matches, PREG_SET_ORDER );
 	foreach ( $matches as $match ) {
 	
 		# if no params present, badly defined, skip

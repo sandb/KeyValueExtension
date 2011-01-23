@@ -5,8 +5,17 @@
 #
 # Released under GNU LGPL
 
+# Alert the user that this is not a valid entry point to MediaWiki 
+# if they try to access the special pages or extension file directly.
+if ( !defined( 'MEDIAWIKI' ) ) {
+	echo ( 'This is not a valid entry point to MediaWiki.' );
+	exit ( 1 );
+}
+
+# define the message array
 $messages = array();
- 
+
+# english messages 
 $messages['en'] = array(
 	'keyvalue' => 'KeyValue',
 	'available_categories' => 'The following categories are currently in use:',

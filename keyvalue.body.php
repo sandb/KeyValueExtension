@@ -5,6 +5,13 @@
 #
 # Released under GNU LGPL
 
+# Alert the user that this is not a valid entry point to MediaWiki 
+# if they try to access the special pages or extension file directly.
+if ( !defined( 'MEDIAWIKI' ) ) {
+	echo ( 'This is not a valid entry point to MediaWiki.' );
+	exit ( 1 );
+}
+
 /**
  * Special page implementation for the KeyValue extension
  */
@@ -28,7 +35,9 @@ class SpecialKeyValue extends SpecialPage {
 		global $wgRequest, $wgOut;
  
 		$this->setHeaders();
- 
+
+		# The $par parameter should be safe (comes via executePath
+		# and Title::getDBKey - Title::secureAndSplit 
 		if ( !$par ) {
 			return $this->executeMainPage();
 		} 
@@ -111,10 +120,12 @@ class SpecialKeyValue extends SpecialPage {
 		global $wgOut, $wgRequest;
 
 		$kvis = keyValueGetByCategory( $category );
-		
+	
+		# should be safe, does not end up in browser in any case
 		$delimiter = $wgRequest->getText('delimiter');
 		$delimiter = $delimiter ? $delimiter : ',';
 
+		# should be safe, does not end up in browser in any case
 		$enclosure = $wgRequest->getText('enclosure');
 		$enclosure = $enclosure ? $enclosure : ',';
 		
@@ -125,14 +136,14 @@ class SpecialKeyValue extends SpecialPage {
 		header( "Content-Description: File Transfer" );
 		header( "Content-type: text/csv" );
 		header( "Content-Transfer-Encoding: binary" ); 
-		header( "Content-Disposition: attachment; filename=\"keyvalues.csv\"" );
+		header( "Content-Disposition: attachment; filename=\"$category.csv\"" );
 		header( "Accept-Ranges: bytes" );  
 
 		$file = fopen( 'php://output', 'w' );
 		foreach ( $kvis as $kvi ) {
 			fputcsv( 
 				$file, 
-				array( $kvi->category, $kvi->key, $kvi->value ),
+				array( $kvi->key, $kvi->value ),
 				$delimiter,
 				$enclosure
 			);
