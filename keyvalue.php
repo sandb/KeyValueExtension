@@ -1,5 +1,5 @@
 <?php
-# MediaWiki KeyValue extension v0.4
+# MediaWiki KeyValue extension v0.5
 #
 # Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
 #
@@ -29,7 +29,7 @@ $wgExtensionCredits['parserhook'][] = array(
 	'description' => 'Enables setting data in retrievable category:Key=>Value pairs',
 	'url' => 'http://www.mediawiki.org/wiki/Extension:KeyValue',
 	'author' => 'Pieter Iserbyt',
-	'version' => '0.4',
+	'version' => '0.5',
 );
 
 # Connecting the hooks
@@ -270,18 +270,6 @@ function keyValueDbTry($function, $dbtype ) {
 	# so try to auto-create table 
 	keyValueCreateTable( $db );
 	
-	# if an error occured after trying to create table
-	# push the old error onwards
-	syslog( LOG_INFO, "error reporting before ".$db->lastErrno()  ); 
-	if ( $db->lastErrno() ) {
-	syslog( LOG_INFO, "error reporting after" ); 
-		$db->reportQueryError( 
-			$lastError, 
-			$lastErrno, 
-			$lastQuery, 
-			$function );
-	}
-
 	# restore previous error ignore status
 	$db->ignoreErrors( $oldIgnore );
 
@@ -423,7 +411,7 @@ function keyValueCreateTable( $dbw ) {
 	$indexname = $dbw->tableName( KEYVALUE_INDEX );
 
 	$tablesql = "CREATE TABLE $tablename ( article_id INT, kvcategory VARCHAR(255), kvkey VARCHAR(255), kvvalue TEXT)";
-	$indexsql = "CREATE INDEX $indexname on $tablename (article_id, category)";
+	$indexsql = "CREATE INDEX $indexname on $tablename (article_id, kvcategory)";
 
 	$dbw->begin();
 	$dbw->query($tablesql);
