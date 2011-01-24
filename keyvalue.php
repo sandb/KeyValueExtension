@@ -1,5 +1,5 @@
 <?php
-# MediaWiki KeyValue extension v0.3
+# MediaWiki KeyValue extension v0.4
 #
 # Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
 #
@@ -29,7 +29,7 @@ $wgExtensionCredits['parserhook'][] = array(
 	'description' => 'Enables setting data in retrievable category:Key=>Value pairs',
 	'url' => 'http://www.mediawiki.org/wiki/Extension:KeyValue',
 	'author' => 'Pieter Iserbyt',
-	'version' => '0.3',
+	'version' => '0.4',
 );
 
 # Connecting the hooks
@@ -218,61 +218,75 @@ function keyValueGetValues( &$text ) {
  * table functionality without any performance penalty.
  *
  * @param $function The function to call. Should have at least expect a database as first parameter.
- * @param integer $db Index of the connection to get. Same as for wfGetDB, either DB_MASTER or DB_SLAVE
+ * @param $dbtype Index of the connection to get. Same as for wfGetDB, either DB_MASTER or DB_SLAVE.
  * @param ... Any extra parameters will be passed on to the supplied function
  * @return The result of the function called.
  */
-function keyValueDbTry($function, $db) {
+function keyValueDbTry($function, $dbtype ) {
 
-	$dbw = wfGetDB( $db );
+	$db = wfGetDB( $dbtype );
 
 	# Get all params from the function as an array. Remove two parameters at the 
 	# front ($function and $db) and add the database link.
 	$args = func_get_args();
 	$args = array_slice( $args, 2 );
-	$args = array_merge( array( $dbw ), $args );
+	$args = array_merge( array( $db ), $args );
 
 	# set the db to ignore errors
-	$oldIgnore = $dbw->ignoreErrors( true );
+	$oldIgnore = $db->ignoreErrors( true );
 	
 	# call the requested function with the db and the requested args
 	$result = call_user_func_array($function, $args);
+
+	# if no error occured, return the result
+	if ( ! $db->lastErrno() ) {
+		# restore previous error ignore status
+		$db->ignoreErrors( $oldIgnore );
+
+		#return the result
+		return $result;
+	}
+	# !! an error occured, try again, after trying to create the table
+		
+	# save the current error
+	$lastError = $db->lastError();
+	$lastErrno = $db->lastErrno();
+	$lastQuery = $db->lastQuery();
+
+	# This is weird, but the only way i found to reset the error state of the database:
+	# the loadbalancer is returned by wfGetLB, and this instance manages connections to
+	# the database. We close the current connection to the database by calling it's
+	# "closeConnecton" (yes, with a spelling error) to remove the connection from it's
+	# pool. After that we again ask for a connection to the db, and a new, error-state
+	# free connection is created.
+	wfGetLB()->closeConnecton($db);
+	$db = wfGetDB( $dbtype );
+	$args[0] = $db;
 	
-	# if an error occured, try again, after trying to create the table
-	if ( $dbw->lastErrno() ) {
+	# since new connection; reset the new db connection to ignore errors again
+	$oldIgnore = $db->ignoreErrors( true );
 
-		# This is weird, but the only way i found to reset the error state of the database:
-		# the loadbalancer is returned by wfGetLB, and this instance manages connections to
-		# the database. We close the current connection to the database by calling it's
-		# "closeConnecton" (yes, with a spelling error) to remove the connection from it's
-		# pool. After that we again ask for a connection to the db, and a new, error-state
-		# free connection is created.
-		wfGetLB()->closeConnecton($dbw);
-		$dbw = wfGetDB( $db );
-		$args[0] = $dbw;
-		
-		# since new connection; reset the new db connection to ignore errors again
-		$oldIgnore = $dbw->ignoreErrors( true );
-
-		# on error, maybe the table had not yet been created, 
-		# so try to auto-create table 
-		keyValueCreateTable( $dbw );
-		
-		# and try calling the function again, maybe it works now
-		$result = call_user_func_array($function, $args);
+	# on error, maybe the table had not yet been created, 
+	# so try to auto-create table 
+	keyValueCreateTable( $db );
+	
+	# if an error occured after trying to create table
+	# push the old error onwards
+	syslog( LOG_INFO, "error reporting before ".$db->lastErrno()  ); 
+	if ( $db->lastErrno() ) {
+	syslog( LOG_INFO, "error reporting after" ); 
+		$db->reportQueryError( 
+			$lastError, 
+			$lastErrno, 
+			$lastQuery, 
+			$function );
 	}
 
 	# restore previous error ignore status
-	$dbw->ignoreErrors( $oldIgnore );
+	$db->ignoreErrors( $oldIgnore );
 
-	# if an error occured after retry, push the error onwards
-	if ( $dbw->lastErrno() ) {
-		$dbw->reportQueryError( 
-			$dbw->lastError(), 
-			$dbw->lastErrno(), 
-			$dbw->lastQuery(), 
-			$function );
-	}
+	# and try calling the function again, maybe it works now
+	$result = call_user_func_array($function, $args);
 
 	return $result;
 }
@@ -309,9 +323,9 @@ function keyValueStoreFromDb( $dbw, $articleId, $keyValues ) {
 			$dbw->tableName( KEYVALUE_TABLE ), 
 			array( 
 				"article_id" => $articleId, 
-				"category" => $kv->category,
-				"key" => $kv->key,
-				"value" => $kv->value
+				"kvcategory" => $kv->category,
+				"kvkey" => $kv->key,
+				"kvvalue" => $kv->value
 			)
 		);
 	}
@@ -336,14 +350,13 @@ function keyValueGetCategories() {
 function keyValueGetCategoriesFromDb( $dbr ) {
 
 	$result = array();
-	# $dbr = wfGetDB( DB_SLAVE );
 	
 	$res = $dbr->select(
 		$dbr->tableName( KEYVALUE_TABLE ),
-		array( "category", "count(category) as count" ),
+		array( "kvcategory as category", "count(kvcategory) as count" ),
 		'',
 		'keyValueGetCategories',
-		array( "GROUP BY" => "category" )
+		array( "GROUP BY" => "kvcategory" )
 	);
 
 	if ( !$res ) {
@@ -380,12 +393,11 @@ function keyValueGetByCategory( $category ) {
  */
 function keyValueGetByCategoryFromDb( $dbr, $category ) {
 	$result = array();
-	#$dbr = wfGetDB( DB_SLAVE );
 	
 	$res = $dbr->select(
 		$dbr->tableName( KEYVALUE_TABLE ),
-		array( 'category', 'key', 'value' ),
-		array( "category == \"$category\"" ),
+		array( 'kvcategory', 'kvkey', 'kvvalue' ),
+		array( "kvcategory = \"$category\"" ),
 		'keyValueGetByCategory'
 	);
 
@@ -394,7 +406,7 @@ function keyValueGetByCategoryFromDb( $dbr, $category ) {
 	}
 
 	while ( $row = $dbr->fetchRow( $res ) ) {
-		$result[] = new KeyValueInstance($category, $row['key'], $row['value']);
+		$result[] = new KeyValueInstance($category, $row['kvkey'], $row['kvvalue']);
 	}
 
 	return $result;
@@ -410,7 +422,7 @@ function keyValueCreateTable( $dbw ) {
 	$tablename = $dbw->tableName( KEYVALUE_TABLE );
 	$indexname = $dbw->tableName( KEYVALUE_INDEX );
 
-	$tablesql = "CREATE TABLE $tablename ( article_id INT, category VARCHAR(255), key VARCHAR(255), value TEXT)";
+	$tablesql = "CREATE TABLE $tablename ( article_id INT, kvcategory VARCHAR(255), kvkey VARCHAR(255), kvvalue TEXT)";
 	$indexsql = "CREATE INDEX $indexname on $tablename (article_id, category)";
 
 	$dbw->begin();
