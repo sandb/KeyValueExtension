@@ -1,5 +1,5 @@
 <?php
-# MediaWiki KeyValue extension v0.6
+# MediaWiki KeyValue extension v0.7
 #
 # Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
 #
@@ -37,10 +37,9 @@ $wgHooks['ArticleDeleteComplete'][] = 'keyValueDeleteComplete';
 # Special page initialisations
 $dir = dirname(__FILE__) . '/';
 
-# Define autoloading for classes KeyValue, SpecialPage and SpecialKeyValue
+# Define autoloading for classes KeyValue, KeyValueInstance and SpecialKeyValue
 $wgAutoloadClasses['KeyValue'] = $dir . 'keyvalue.core.php'; 
 $wgAutoloadClasses['KeyValueInstance'] = $dir . 'keyvalue.core.php'; 
-$wgAutoloadClasses['SpecialPage'] = $IP . 'SpecialPage.php'; 
 $wgAutoloadClasses['SpecialKeyValue'] = $dir . 'keyvalue.body.php'; 
 
 # Location of the messages file
