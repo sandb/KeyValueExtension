@@ -96,7 +96,6 @@ class KeyValue{
 		if (self::$instance == NULL) {
 			global $wgTitle;
 			$articleId = $wgTitle->getArticleID();
-			syslog( LOG_INFO, "ArticleID=$articleId");
 			self::$instance = new KeyValue($articleId);
 		}
 		return self::$instance;

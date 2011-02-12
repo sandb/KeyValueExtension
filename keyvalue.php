@@ -1,5 +1,5 @@
 <?php
-# MediaWiki KeyValue extension v0.9
+# MediaWiki KeyValue extension v0.10
 #
 # Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
 #
@@ -25,7 +25,7 @@ $wgExtensionCredits['parserhook'][] = array(
 	'description' => 'Enables setting data in retrievable category:Key=>Value pairs',
 	'url' => 'http://www.mediawiki.org/wiki/Extension:KeyValue',
 	'author' => 'Pieter Iserbyt',
-	'version' => '0.9',
+	'version' => '0.10',
 );
 
 # Connecting the hooks
@@ -124,7 +124,6 @@ function keyValueDeleteComplete( &$article, &$user, $reason, $id ) {
  * @return $value
  */
 function keyValueRender( $parser, $category = '', $key = '', $value = '' ) {
-	syslog( LOG_INFO, "rendering: $value" );
 	$keyValue = KeyValue::getInstance();
 	$keyValue->add( $category, $key, $value ); 
 	return $value;
