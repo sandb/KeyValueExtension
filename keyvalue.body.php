@@ -57,7 +57,8 @@ class SpecialKeyValue extends SpecialPage {
 	public function executeMainPage() {
 		global $wgOut;
 		$wgOut->addWikiText( wfMsg( 'available_categories' ) );
-		$categories = KeyValue::GetCategories();
+		$keyValue = KeyValue::getInstance();
+		$categories = $keyValue->GetCategories();
 		foreach ( $categories as $category ) {
 			$line = '* [[';
 			$line .= $this->getTitle( $category->category );
@@ -91,8 +92,9 @@ class SpecialKeyValue extends SpecialPage {
 		$line .= wfMsg( 'csv_file' );
 		$line .= '].';
 		$wgOut->addWikiText( $line );
-		
-		$kvis = KeyValue::GetByCategory( $category );
+	
+		$keyValue = KeyValue::getInstance();
+		$kvis = $keyValue->GetByCategory( $category );
 		foreach ( $kvis as $kvi ) {
 			$line = '* ';
 			$line .= $kvi->key;
@@ -119,7 +121,8 @@ class SpecialKeyValue extends SpecialPage {
 	public function executeCategoryCsv( $category ) {
 		global $wgOut, $wgRequest;
 
-		$kvis = KeyValue::GetByCategory( $category );
+		$keyValue = KeyValue::getInstance();
+		$kvis = $keyValue->GetByCategory( $category );
 	
 		# should be safe, does not end up in browser in any case
 		$delimiter = $wgRequest->getText('delimiter');

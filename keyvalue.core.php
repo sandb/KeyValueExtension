@@ -68,149 +68,103 @@ class KeyValueInstance {
 }
 
 /**
- * Holds the KeyValue core functions. All of this class functions are
- * static.
+ * Core KeyValue class, contains all functionality to write and read from db.
  */
-class KeyValue {
+class KeyValue{
 
-	/** Tablename define. */
+	/** Table and index name defines. */
 	const tableName = 'keyvalue';
 	const indexName = 'keyvalueindex';
 
+	private static $instance = NULL;
+	private $articleId;
+	private $kvs;
+
 	/**
-	 * Takes the text of an article and parses it to find all the keyvalue
-	 * functions. Returns all keyvalue's found as an array of 
-	 * keyValueInstance objects, or an empty array if none found.
-	 *
-	 * @param &$text The article text
-	 * @param an array with zero or more keyValueInstances
+	 * Constructor.
 	 */
-	public static function getValues( &$text ) {
-		$result = array();
-		preg_match_all( '/{{\s*#keyvalue:\s*([^}]*)\s*}}/', $text, $matches, PREG_SET_ORDER );
-		foreach ( $matches as $match ) {
-		
-			# if no params present, badly defined, skip
-			if ( count($match) < 2 ) {
-				continue;
-			}
-			
-			$params = preg_split( '/\s*\|\s*/', trim($match[1]) );
-			
-			# if not exactly 3 params present, badly defined, skip
-			if ( count($params) != 3 ) {
-				continue;
-			}
-			
-			$result[] = new KeyValueInstance( $params[0], $params[1], $params[2] );
+	public function __construct($articleId) {
+		$this->articleId = $articleId;
+		$this->kvs = array();
+		$this->assertTable();
+	}
+
+	/**
+	 * @return The current KeyValue instance
+	 */
+	public static function getInstance() {
+		if (self::$instance == NULL) {
+			global $wgTitle;
+			$articleId = $wgTitle->getArticleID();
+			syslog( LOG_INFO, "ArticleID=$articleId");
+			self::$instance = new KeyValue($articleId);
 		}
-		return $result;
+		return self::$instance;
 	}
 
 	/**
-	 * Wrapper for database functions, that will try to auto-create the 
-	 * keyvalue table and call the supplied function a second time, if
-	 * an error occured. This causes this extension to have auto-create 
-	 * table functionality without any performance penalty.
-	 *
-	 * @param $function The function to call. Should have at least expect a database as first parameter.
-	 * @param $dbtype Index of the connection to get. Same as for wfGetDB, either DB_MASTER or DB_SLAVE.
-	 * @param ... Any extra parameters will be passed on to the supplied function
-	 * @return The result of the function called.
+	 * Makes sure the table required exists. Does this both for mysql and 
+	 * sqlite. If table is missing it gets created.
 	 */
-	private static function dbTry($function, $dbtype ) {
+	private function assertTable() {
+		$db = wfGetDB( DB_SLAVE );
+		$createTable = false;
+		if ($db instanceof DatabaseMysql) {
+			$resultWrapper = $db->query("show tables like '".self::tableName."'", "KeyValue::assertTable");
+			$createTable = $resultWrapper->numRows() < 1;
 
-		$db = wfGetDB( $dbtype );
-
-		# all functions called should be static functions in this class.
-		# so adding the 'self::' prefix
-		$function = "self::$function";
-
-		# Get all params from the function as an array. Remove two parameters at the 
-		# front ($function and $db) and add the database link.
-		$args = func_get_args();
-		$args = array_slice( $args, 2 );
-		$args = array_merge( array( $db ), $args );
-
-		# set the db to ignore errors
-		$oldIgnore = $db->ignoreErrors( true );
-		
-		# call the requested function with the db and the requested args
-		$result = call_user_func_array($function, $args);
-
-		# if no error occured, return the result
-		if ( ! $db->lastErrno() ) {
-			# restore previous error ignore status
-			$db->ignoreErrors( $oldIgnore );
-
-			#return the result
-			return $result;
+		} else if ($db instanceof DatabaseSqlite) {
+			$resultWrapper = $db->select("sqlite_master", "name", array("type='table'", "name='".self::tableName."'"), "KeyValue::assertTable");
+			$createTable = $resultWrapper->numRows() < 1;
 		}
-		# !! an error occured, try again, after trying to create the table
-			
-		# save the current error
-		$lastError = $db->lastError();
-		$lastErrno = $db->lastErrno();
-		$lastQuery = $db->lastQuery();
-
-		# This is weird, but the only way i found to reset the error state of the database:
-		# the loadbalancer is returned by wfGetLB, and this instance manages connections to
-		# the database. We close the current connection to the database by calling it's
-		# "closeConnecton" (yes, with a spelling error) to remove the connection from it's
-		# pool. After that we again ask for a connection to the db, and a new, error-state
-		# free connection is created.
-		wfGetLB()->closeConnecton($db);
-		$db = wfGetDB( $dbtype );
-		$args[0] = $db;
-		
-		# since new connection; reset the new db connection to ignore errors again
-		$oldIgnore = $db->ignoreErrors( true );
-
-		# on error, maybe the table had not yet been created, 
-		# so try to auto-create table 
-		self::createTable( $db );
-		
-		# restore previous error ignore status
-		$db->ignoreErrors( $oldIgnore );
-
-		# and try calling the function again, maybe it works now
-		$result = call_user_func_array($function, $args);
-
-		return $result;
+		if ($createTable) {
+			$this->createTable();
+		}
 	}
 
 	/**
-	 * Writes an array of keyValue instances to the database. Autocreates the
-	 * table if it's missing. Any keyvalues store for the specified article id
-	 * will be deleted if no longer present. Autocreates table if missing.
-	 * 
-	 * @param $articleId The id of the article to register the keyvalues under
-	 * @param $keyValues An array of zero or more keyvalues to write to the db.
+	 * Creates a new keyvalue table.
 	 */
-	public static function store( $articleId, $keyValues = array() ) {
-		return self::dbTry( 'storeFromDb', DB_MASTER, $articleId, $keyValues );
+	private function createTable() {
+		$dbw = wfGetDB( DB_MASTER );
+
+		$tablename = $dbw->tableName( self::tableName );
+		$indexname = $dbw->tableName( self::indexName );
+
+		$tablesql = "CREATE TABLE $tablename ( article_id INT, kvcategory VARCHAR(255), kvkey VARCHAR(255), kvvalue TEXT)";
+		$indexsql = "CREATE INDEX $indexname on $tablename (article_id, kvcategory)";
+
+		$dbw->begin();
+		$dbw->query( $tablesql );
+		$dbw->query( $indexsql );
+		$dbw->commit();
 	}
 
 	/**
-	 * Writes an array of keyValue instances to the database. Autocreates the
-	 * table if it's missing. Any keyvalues store for the specified article id
-	 * will be deleted if no longer present.
-	 * 
-	 * @param $dbw The database to write to
-	 * @param $articleId The id of the article to register the keyvalues under
-	 * @param $keyValues An array of zero or more keyvalues to write to the db.
+	 * Adds a key value combination to be stored for this page when store is 
+	 * called.
 	 */
-	private static function storeFromDb( $dbw, $articleId, $keyValues ) {
+	public function add( $category, $key, $value ) {
+		$this->kvs[] = new KeyValueInstance( $category, $key, $value );
+	}
+
+	/**
+	 * Writes the added key/values to the database. Any keyvalues 
+	 * previously stored for the specified article id will be deleted if no 
+	 * longer present. 
+	 */
+	public function store() {
+		$dbw = wfGetDB( DB_MASTER );
 		$dbw->begin();
 		$dbw->delete( 
 			$dbw->tableName( self::tableName ), 
-			array( "article_id" => $articleId ) 
+			array( "article_id" => $this->articleId ) 
 		);
-		foreach($keyValues as $kv) {
+		foreach($this->kvs as $kv) {
 			$dbw->insert( 
 				$dbw->tableName( self::tableName ), 
 				array( 
-					"article_id" => $articleId, 
+					"article_id" => $this->articleId, 
 					"kvcategory" => $kv->category,
 					"kvkey" => $kv->key,
 					"kvvalue" => $kv->value
@@ -221,22 +175,13 @@ class KeyValue {
 	}
 
 	/**
-	 * Returns the list of categories in use in the wiki. Autocreates table if missing.
-	 *
-	 * @return array of category objects having ::category and ::count fields.
-	 */
-	public static function getCategories() {
-		return self::dbTry( 'getCategoriesFromDb', DB_SLAVE );
-	}
-
-	/**
 	 * Returns the list of categories in use in the wiki.
 	 *
-	 * @param $dbr The database to read from
 	 * @return array of category objects having ::category and ::count fields.
 	 */
-	private static function getCategoriesFromDb( $dbr ) {
+	public function getCategories() {
 
+		$dbr = wfGetDB( DB_SLAVE );
 		$result = array();
 		
 		$res = $dbr->select(
@@ -266,20 +211,8 @@ class KeyValue {
 	 * @param $category The category for which to return values.
 	 * @return an array of KeyValueInstance objects.
 	 */
-	public static function getByCategory( $category ) {
-		return self::dbTry( 'getByCategoryFromDb', DB_SLAVE, $category );
-	}
-
-	/**
-	 * Returns all key-values for a given category. Results are 
-	 * returned as an array of KeyValueInstance objects. No results
-	 * will return an empty array.
-	 *
-	 * @param $dbr The database to read from
-	 * @param $category The category for which to return values.
-	 * @return an array of KeyValueInstance objects.
-	 */
-	private static function getByCategoryFromDb( $dbr, $category ) {
+	public function getByCategory( $category ) {
+		$dbr = wfGetDB( DB_SLAVE );
 		$result = array();
 		
 		$res = $dbr->select(
@@ -299,26 +232,6 @@ class KeyValue {
 
 		return $result;
 	}
-
-	/**
-	 * Creates a new keyvalue table.
-	 *
-	 * @param $dbw The database to create the table in
-	 */
-	private static function createTable( $dbw ) {
-
-		$tablename = $dbw->tableName( self::tableName );
-		$indexname = $dbw->tableName( self::indexName );
-
-		$tablesql = "CREATE TABLE $tablename ( article_id INT, kvcategory VARCHAR(255), kvkey VARCHAR(255), kvvalue TEXT)";
-		$indexsql = "CREATE INDEX $indexname on $tablename (article_id, kvcategory)";
-
-		$dbw->begin();
-		$dbw->query($tablesql);
-		$dbw->query($indexsql);
-		$dbw->commit();
-	}
-
 }
 
 ?>

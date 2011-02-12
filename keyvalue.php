@@ -73,7 +73,7 @@ function keyValueLanguageGetMagic( &$magicWords, $langCode ) {
 	$magicWords['keyvalue'] = array( 0, 'keyvalue' );
 	return true;
 }
- 
+
 /**
  * Called when an article is saved, updates all the keyvalues defined in the
  * article. Is connected to the ArticleSaveComple hook.
@@ -92,8 +92,8 @@ function keyValueLanguageGetMagic( &$magicWords, $langCode ) {
  * @return true
  */
 function keyValueSaveComplete( &$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision, &$status, $baseRevId ) {
-	$kvs = KeyValue::GetValues( $text );
-	KeyValue::Store( $article->getID(), $kvs);
+	$keyValue = KeyValue::getInstance();
+	$keyValue->store(); 
 	return true;
 }
 
@@ -107,7 +107,8 @@ function keyValueSaveComplete( &$article, &$user, $text, $summary, $minoredit, $
  * @return true 
  */
 function keyValueDeleteComplete( &$article, &$user, $reason, $id ) {
-	KeyValue::Store( $article->getID());
+	$keyValue = KeyValue::getInstance();
+	$keyValue->store(); 
 	return true;
 }
 
@@ -123,6 +124,9 @@ function keyValueDeleteComplete( &$article, &$user, $reason, $id ) {
  * @return $value
  */
 function keyValueRender( $parser, $category = '', $key = '', $value = '' ) {
+	syslog( LOG_INFO, "rendering: $value" );
+	$keyValue = KeyValue::getInstance();
+	$keyValue->add( $category, $key, $value ); 
 	return $value;
 }
 
