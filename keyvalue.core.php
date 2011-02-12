@@ -79,13 +79,15 @@ class KeyValue{
 	private static $instance = NULL;
 	private $articleId;
 	private $kvs;
+	private $isRedirect = false;
 
 	/**
 	 * Constructor.
 	 */
-	public function __construct($articleId) {
+	public function __construct($articleId, $isRedirect = false) {
 		$this->articleId = $articleId;
 		$this->kvs = array();
+		$this->isRedirect = $isRedirect;
 		$this->assertTable();
 	}
 
@@ -95,8 +97,7 @@ class KeyValue{
 	public static function getInstance() {
 		if (self::$instance == NULL) {
 			global $wgTitle;
-			$articleId = $wgTitle->getArticleID();
-			self::$instance = new KeyValue($articleId);
+			self::$instance = new KeyValue($wgTitle->getArticleID(), $wgTitle->isRedirect());
 		}
 		return self::$instance;
 	}
@@ -106,6 +107,7 @@ class KeyValue{
 	 * sqlite. If table is missing it gets created.
 	 */
 	private function assertTable() {
+		if ($this->isRedirect) return;
 		global $wgDBprefix;
 		$db = wfGetDB( DB_SLAVE );
 		$createTable = false;
@@ -145,6 +147,7 @@ class KeyValue{
 	 * called.
 	 */
 	public function add( $category, $key, $value ) {
+		if ($this->isRedirect) return;
 		$this->kvs[] = new KeyValueInstance( $category, $key, $value );
 	}
 
@@ -154,6 +157,7 @@ class KeyValue{
 	 * longer present. 
 	 */
 	public function store() {
+		if ($this->isRedirect) return;
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->begin();
 		$dbw->delete( 
