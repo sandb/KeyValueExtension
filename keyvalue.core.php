@@ -113,6 +113,7 @@ class KeyValue{
 		$tableName = $dbr->tableName( self::tableName );
 		$createTable = false;
 		if ($dbr instanceof DatabaseMysql) {
+			$tableName = str_replace( '`', '', $tableName );
 			$resultWrapper = $dbr->query("show tables like '$tableName'", "KeyValue::assertTable");
 			$createTable = $resultWrapper->numRows() < 1;
 
