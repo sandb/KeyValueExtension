@@ -259,7 +259,7 @@ class KeyValue{
 			array( 'article_id', 'kvcategory', 'kvkey', 'kvvalue' ),
 			array( "kvcategory = \"$category\"" ),
 			'KeyValue::getByCategory($category)',
-			array( "order by" => "kvcategory, kvkey, kvvalue" )
+			array( "ORDER BY" => "kvkey, kvvalue" )
 		);
 
 		if ( !$res ) {
