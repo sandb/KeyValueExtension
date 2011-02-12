@@ -109,14 +109,15 @@ class KeyValue{
 	private function assertTable() {
 		if ($this->isRedirect) return;
 		global $wgDBprefix;
-		$db = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_SLAVE );
+		$tableName = $dbr->tableName( self::tableName );
 		$createTable = false;
-		if ($db instanceof DatabaseMysql) {
-			$resultWrapper = $db->query("show tables like '$wgDBprefix".self::tableName."'", "KeyValue::assertTable");
+		if ($dbr instanceof DatabaseMysql) {
+			$resultWrapper = $dbr->query("show tables like '$tableName'", "KeyValue::assertTable");
 			$createTable = $resultWrapper->numRows() < 1;
 
-		} else if ($db instanceof DatabaseSqlite) {
-			$resultWrapper = $db->select("sqlite_master", "name", array("type='table'", "name='$wgDBprefix".self::tableName."'"), "KeyValue::assertTable");
+		} else if ($dbr instanceof DatabaseSqlite) {
+			$resultWrapper = $dbr->select("sqlite_master", "name", array("type='table'", "name='$tableName'"), "KeyValue::assertTable");
 			$createTable = $resultWrapper->numRows() < 1;
 		}
 		if ($createTable) {
@@ -127,18 +128,29 @@ class KeyValue{
 	/**
 	 * Creates a new keyvalue table.
 	 */
-	private function createTable() {
+	public function createTable() {
 		$dbw = wfGetDB( DB_MASTER );
 
-		$tablename = $dbw->tableName( self::tableName );
-		$indexname = $dbw->tableName( self::indexName );
+		$tableName = $dbw->tableName( self::tableName );
+		$indexName = $dbw->tableName( self::indexName );
 
-		$tablesql = "CREATE TABLE $tablename ( article_id INT, kvcategory VARCHAR(255), kvkey VARCHAR(255), kvvalue TEXT)";
-		$indexsql = "CREATE INDEX $indexname on $tablename (article_id, kvcategory)";
+		$tablesql = "CREATE TABLE $tableName ( article_id INT, kvcategory VARCHAR(255), kvkey VARCHAR(255), kvvalue TEXT)";
+		$indexsql = "CREATE INDEX $indexName on $tableName (article_id, kvcategory)";
 
 		$dbw->begin();
 		$dbw->query( $tablesql );
 		$dbw->query( $indexsql );
+		$dbw->commit();
+	}
+
+	/**
+	 * Drops the current keyvalue table.
+	 */
+	public function dropTable() {
+		$dbw = wfGetDB( DB_MASTER );
+		$tableName = $dbw->tableName( self::tableName );
+		$dbw->begin();
+		$dbw->query("drop table $tableName", "KeyValue::dropTable()" );
 		$dbw->commit();
 	}
 
@@ -151,12 +163,31 @@ class KeyValue{
 		$this->kvs[] = new KeyValueInstance( $category, $key, $value );
 	}
 
+	private function removeDuplicates() {
+		if ( count( $this->kvs ) == 0 ) {
+			return;
+		}
+		usort( $this->kvs, array('KeyValueInstance', 'compareKey') );
+		$result = array();
+		$prev = $this->kvs[0];
+		$result[] = $prev;
+		for ( $i = 1; $i < count($this->kvs); $i++ ) {
+			if ( KeyValueInstance::compareKey($prev, $this->kvs[$i]) == 0 ) {
+				continue;
+			}
+			$prev = $this->kvs[$i];
+			$result[] = $prev;
+		}
+		$this->kvs = $result;
+	}
+
 	/**
 	 * Writes the added key/values to the database. Any keyvalues 
 	 * previously stored for the specified article id will be deleted if no 
 	 * longer present. 
 	 */
 	public function store() {
+		$this->removeDuplicates();
 		if ($this->isRedirect) return;
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->begin();

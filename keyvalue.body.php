@@ -17,12 +17,16 @@ if ( !defined( 'MEDIAWIKI' ) ) {
  */
 class SpecialKeyValue extends SpecialPage {
 
+	private $isSysOp;
+
 	/**
 	 * Constructor.
 	 */
 	public function __construct() {
 		parent::__construct( 'KeyValue' );
 		wfLoadExtensionMessages('KeyValue');
+		global $wgUser;
+		$this->isSysOp = in_array( "sysop", $wgUser->getEffectiveGroups() );
 	}
  
  	/**
@@ -36,14 +40,20 @@ class SpecialKeyValue extends SpecialPage {
  
 		$this->setHeaders();
 
+		if ($this->isSysOp && $wgRequest->getCheck('recreate')) {
+			$keyValue = KeyValue::getInstance();
+			$keyValue->dropTable();
+			$keyValue->createTable();
+			return $this->executeTableRecreatedPage();
+		} 
+
 		# The $par parameter should be safe (comes via executePath
 		# and Title::getDBKey - Title::secureAndSplit 
 		if ( !$par ) {
 			return $this->executeMainPage();
 		} 
-		
-		$csv = $wgRequest->getCheck('csv');
-		if ( $csv ) {
+
+		if ( $wgRequest->getCheck('csv') ) {
 			return $this->executeCategoryCsv($par);
 		}
 
@@ -71,6 +81,28 @@ class SpecialKeyValue extends SpecialPage {
 			$line .= ')';
 			$wgOut->addWikiText( $line );
 		}
+		if ($this->isSysOp) {
+			$this->addRecreateTableButton();
+		}
+		$wgOut->setPageTitle( wfMsg( 'keyvalue_categories' ) );
+	}
+
+	/**
+     	 * Adds a "recreate tables" button to the output.
+	 */
+	public function addRecreateTableButton() {
+		global $wgOut;
+		$wgOut->addWikiText("\n");
+		$wgOut->addHTML('<form method="post"><input type="submit" name="recreate" value="Recreate KeyValue table" /></form>');
+	}
+
+	/** 
+	 * Renders the page shown after a table re-create.
+	 */
+	public function executeTableRecreatedPage() {
+		global $wgOut;
+		$wgOut->addWikiText( wfMsg( 'table_has_been_recreated' ) );
+		$wgOut->addHTML( '<p><a href="" alt="'.wfMsg( 'proceed' ).'">'.wfMsg( 'proceed' ).'<a/></p>');
 		$wgOut->setPageTitle( wfMsg( 'keyvalue_categories' ) );
 	}
 

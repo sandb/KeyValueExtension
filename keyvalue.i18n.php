@@ -24,7 +24,9 @@ $messages['en'] = array(
 	'download_category_as' => 'Download the data for this category as a',
 	'csv_file' => 'csv file',
 	'keyvalues_for' => 'KeyValues for',
-	'return' => 'Return to'
+	'return' => 'Return to',
+	'table_has_been_recreated' => 'The KeyValue table has been recreated. Pages containing KeyValue instances will not show up in the special pages until they are saved again.',
+	'proceed' => 'Proceed'
 );
 
 ?>
