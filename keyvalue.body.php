@@ -126,12 +126,15 @@ class SpecialKeyValue extends SpecialPage {
 		$wgOut->addWikiText( $line );
 	
 		$keyValue = KeyValue::getInstance();
-		$kvis = $keyValue->GetByCategory( $category );
+		$kvis = $keyValue->getByCategory( $category );
 		foreach ( $kvis as $kvi ) {
 			$line = '* ';
 			$line .= $kvi->key;
 			$line .= ' = ';
 			$line .= $kvi->value;
+			$line .= " ''([[";
+			$line .= $kvi->title->getFullText();
+			$line .= "]])''";
 			$wgOut->addWikiText( $line );
 		}
 		

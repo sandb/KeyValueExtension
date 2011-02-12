@@ -28,6 +28,9 @@ class KeyValueInstance {
 	/** The value. A string of max 4kb size. */
 	public $value;
 
+	/** The mediawiki title instance of the page where this keyvalue is located. Optional. */
+	public $title;
+
 	/**
 	 * Constructs a new instance, with the supplied values
 	 * @param $category The category to store
@@ -224,7 +227,7 @@ class KeyValue{
 			$dbr->tableName( self::tableName ),
 			array( "kvcategory as category", "count(kvcategory) as count" ),
 			'',
-			'keyValueGetCategories',
+			'KeyValue::getCategories()',
 			array( "GROUP BY" => "kvcategory" )
 		);
 
@@ -245,7 +248,7 @@ class KeyValue{
 	 * will return an empty array. Autocreates table if missing.
 	 *
 	 * @param $category The category for which to return values.
-	 * @return an array of KeyValueInstance objects.
+	 * @return an array of KeyValueInstance objects, with the title property set.
 	 */
 	public function getByCategory( $category ) {
 		$dbr = wfGetDB( DB_SLAVE );
@@ -253,9 +256,10 @@ class KeyValue{
 		
 		$res = $dbr->select(
 			$dbr->tableName( self::tableName ),
-			array( 'kvcategory', 'kvkey', 'kvvalue' ),
+			array( 'article_id', 'kvcategory', 'kvkey', 'kvvalue' ),
 			array( "kvcategory = \"$category\"" ),
-			'keyValueGetByCategory'
+			'KeyValue::getByCategory($category)',
+			array( "order by" => "kvcategory, kvkey, kvvalue" )
 		);
 
 		if ( !$res ) {
@@ -263,7 +267,9 @@ class KeyValue{
 		}
 
 		while ( $row = $dbr->fetchRow( $res ) ) {
-			$result[] = new KeyValueInstance($category, $row['kvkey'], $row['kvvalue']);
+			$kv = new KeyValueInstance($category, $row['kvkey'], $row['kvvalue']);
+			$kv->title = Title::newFromId( $row['article_id'] );
+			$result[] = $kv; 
 		}
 
 		return $result;
