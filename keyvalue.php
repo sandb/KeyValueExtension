@@ -1,5 +1,5 @@
 <?php
-# MediaWiki KeyValue extension v0.7
+# MediaWiki KeyValue extension v0.9
 #
 # Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
 #
@@ -25,7 +25,7 @@ $wgExtensionCredits['parserhook'][] = array(
 	'description' => 'Enables setting data in retrievable category:Key=>Value pairs',
 	'url' => 'http://www.mediawiki.org/wiki/Extension:KeyValue',
 	'author' => 'Pieter Iserbyt',
-	'version' => '0.5',
+	'version' => '0.9',
 );
 
 # Connecting the hooks
