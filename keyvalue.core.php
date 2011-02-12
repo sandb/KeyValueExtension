@@ -106,14 +106,15 @@ class KeyValue{
 	 * sqlite. If table is missing it gets created.
 	 */
 	private function assertTable() {
+		global $wgDBprefix;
 		$db = wfGetDB( DB_SLAVE );
 		$createTable = false;
 		if ($db instanceof DatabaseMysql) {
-			$resultWrapper = $db->query("show tables like '".self::tableName."'", "KeyValue::assertTable");
+			$resultWrapper = $db->query("show tables like '$wgDBprefix".self::tableName."'", "KeyValue::assertTable");
 			$createTable = $resultWrapper->numRows() < 1;
 
 		} else if ($db instanceof DatabaseSqlite) {
-			$resultWrapper = $db->select("sqlite_master", "name", array("type='table'", "name='".self::tableName."'"), "KeyValue::assertTable");
+			$resultWrapper = $db->select("sqlite_master", "name", array("type='table'", "name='$wgDBprefix".self::tableName."'"), "KeyValue::assertTable");
 			$createTable = $resultWrapper->numRows() < 1;
 		}
 		if ($createTable) {
