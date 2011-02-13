@@ -1,5 +1,5 @@
 <?php
-# MediaWiki KeyValue extension v0.16
+# MediaWiki KeyValue extension v0.17
 #
 # Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
 #

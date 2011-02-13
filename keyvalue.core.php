@@ -248,9 +248,11 @@ class KeyValue{
 	 * will return an empty array. Autocreates table if missing.
 	 *
 	 * @param $category The category for which to return values.
+	 * @param $loadTitles If true, will fill in the title property of each KeyValueInstance
+	 *	with a title object matching it's page.
 	 * @return an array of KeyValueInstance objects, with the title property set.
 	 */
-	public function getByCategory( $category ) {
+	public function getByCategory( $category, $loadTitles = true ) {
 		$dbr = wfGetDB( DB_SLAVE );
 		$result = array();
 		
@@ -266,9 +268,15 @@ class KeyValue{
 			return $result;
 		}
 
+		$titles = array();
 		while ( $row = $dbr->fetchRow( $res ) ) {
 			$kv = new KeyValueInstance($category, $row['kvkey'], $row['kvvalue']);
-			$kv->title = Title::newFromId( $row['article_id'] );
+			if ( $loadTitles ) {
+				if ( ! isset( $titles[ $row['article_id'] ] ) ) {
+					$titles[ $row['article_id'] ] = Title::newFromId( $row['article_id'] );
+				}
+				$kv->title = $titles[ $row['article_id'] ];
+			}
 			$result[] = $kv; 
 		}
 

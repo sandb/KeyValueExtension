@@ -157,16 +157,8 @@ class SpecialKeyValue extends SpecialPage {
 		global $wgOut, $wgRequest;
 
 		$keyValue = KeyValue::getInstance();
-		$kvis = $keyValue->GetByCategory( $category );
+		$kvis = $keyValue->getByCategory( $category, false );
 	
-		# should be safe, does not end up in browser in any case
-		$delimiter = $wgRequest->getText('delimiter');
-		$delimiter = $delimiter ? $delimiter : ',';
-
-		# should be safe, does not end up in browser in any case
-		$enclosure = $wgRequest->getText('enclosure');
-		$enclosure = $enclosure ? $enclosure : ',';
-		
 		header( "Pragma:  no-cache" );
 		header( "Expires: 0" );
 		header( "Cache-Control: must-revalidate, post-check=0, pre-check=0" );
@@ -177,16 +169,11 @@ class SpecialKeyValue extends SpecialPage {
 		header( "Content-Disposition: attachment; filename=\"$category.csv\"" );
 		header( "Accept-Ranges: bytes" );  
 
-		$file = fopen( 'php://output', 'w' );
 		foreach ( $kvis as $kvi ) {
-			fputcsv( 
-				$file, 
-				array( $kvi->key, $kvi->value ),
-				$delimiter,
-				$enclosure
-			);
+			$key = str_replace(',', '', $kvi->key);
+			$value = str_replace(',', '', $kvi->value);
+			echo("$key,$value\n");
 		}
-		fclose( $file );
 		die;
 	}
 
