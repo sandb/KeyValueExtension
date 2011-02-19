@@ -1,5 +1,5 @@
 <?php
-# MediaWiki KeyValue extension v0.17
+# MediaWiki KeyValue extension v0.18
 #
 # Copyright 2011 Pieter Iserbyt <pieter.iserbyt@gmail.com>
 #
@@ -25,14 +25,15 @@ $wgExtensionCredits['parserhook'][] = array(
 	'description' => 'Enables setting data in retrievable category:Key=>Value pairs',
 	'url' => 'http://www.mediawiki.org/wiki/Extension:KeyValue',
 	'author' => 'Pieter Iserbyt',
-	'version' => '0.16',
+	'version' => '0.18',
 );
 
 # Connecting the hooks
 $wgHooks['ParserFirstCallInit'][] = "keyValueParserFirstCallInit";
 $wgHooks['LanguageGetMagic'][] = 'keyValueLanguageGetMagic';
-$wgHooks['ArticleSaveComplete'][] = 'keyValueSaveComplete';
-$wgHooks['ArticleDeleteComplete'][] = 'keyValueDeleteComplete';
+$wgHooks['ArticleSave'][] = 'keyValueArticleSave';
+$wgHooks['ArticleSaveComplete'][] = 'keyValueArticleSaveComplete';
+$wgHooks['ArticleDeleteComplete'][] = 'keyValueArticleDeleteComplete';
 
 # Special page initialisations
 $dir = dirname(__FILE__) . '/';
@@ -49,6 +50,8 @@ $wgSpecialPages['KeyValue'] = 'SpecialKeyValue';
 # Set the group for the special page
 $wgSpecialPageGroups['KeyValue'] = 'other';
 
+$keyValueIsSaving = false;
+
 /**
  * Implements the initialisation of the extension for parsing. Is connected
  * to the ParserFirstCallInit hook.
@@ -56,7 +59,7 @@ $wgSpecialPageGroups['KeyValue'] = 'other';
  * @return true
  */
 function keyValueParserFirstCallInit() {
-	global $IP, $wgParser, $wgHooks, $keyValueData, $wgMessageCache;
+	global $wgParser;
 	$wgParser->setFunctionHook('keyvalue', 'keyValueRender');
 	return true;
 }
@@ -71,6 +74,27 @@ function keyValueParserFirstCallInit() {
  */
 function keyValueLanguageGetMagic( &$magicWords, $langCode ) {
 	$magicWords['keyvalue'] = array( 0, 'keyvalue' );
+	return true;
+}
+
+/**
+ * Called before the article is being saved. Will set $keyValueIsSaving 
+ * to true so keyValue will be active in remembering and storing.
+ * 
+ * $article: the article (Article object) being saved
+ * $user: the user (User object) saving the article
+ * $text: the new article text
+ * $summary: the edit summary
+ * $minor: minor edit flag
+ * $watchthis: watch the page if true, unwatch the page if false, do nothing if null (since 1.17.0)
+ * $sectionanchor: not used
+ * $flags: bitfield, see documentation for details
+ * &$status: not used
+ */
+function keyValueArticleSave( &$article, &$user, &$text, &$summary,
+ $minor, $watchthis, $sectionanchor, &$flags, &$status ) { 
+	global $keyValueIsSaving;
+	$keyValueIsSaving = true;
 	return true;
 }
 
@@ -91,9 +115,14 @@ function keyValueLanguageGetMagic( &$magicWords, $langCode ) {
  * @param $baseRevId Not used.
  * @return true
  */
-function keyValueSaveComplete( &$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision, &$status, $baseRevId ) {
-	$keyValue = KeyValue::getInstance();
-	$keyValue->store(); 
+function keyValueArticleSaveComplete( &$article, &$user, $text, $summary, 
+ $minoredit, $watchthis, $sectionanchor, &$flags, $revision, 
+ &$status, $baseRevId ) {
+	global $keyValueIsSaving;
+ 	if ($keyValueIsSaving) {
+		$keyValue = KeyValue::getInstance();
+		$keyValue->store(); 
+	}
 	return true;
 }
 
@@ -106,9 +135,12 @@ function keyValueSaveComplete( &$article, &$user, $text, $summary, $minoredit, $
  * @param $id Not used.
  * @return true 
  */
-function keyValueDeleteComplete( &$article, &$user, $reason, $id ) {
-	$keyValue = KeyValue::getInstance();
-	$keyValue->store(); 
+function keyValueArticleDeleteComplete( &$article, &$user, $reason, $id ) {
+	global $keyValueIsSaving;
+ 	if ($keyValueIsSaving) {
+		$keyValue = KeyValue::getInstance();
+		$keyValue->store(); 
+	}
 	return true;
 }
 
@@ -124,9 +156,11 @@ function keyValueDeleteComplete( &$article, &$user, $reason, $id ) {
  * @return $value
  */
 function keyValueRender( $parser, $category = '', $key = '', $value = '' ) {
-	$keyValue = KeyValue::getInstance();
-	$keyValue->add( $category, $key, $value ); 
+	global $keyValueIsSaving;
+ 	if ($keyValueIsSaving) {
+		$keyValue = KeyValue::getInstance();
+		$keyValue->add( $category, $key, $value ); 
+	}
 	return $value;
 }
 
-?>

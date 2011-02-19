@@ -29,4 +29,3 @@ $messages['en'] = array(
 	'proceed' => 'Proceed'
 );
 
-?>
