@@ -12,6 +12,8 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 	exit ( 1 );
 }
 
+// TODO: an API module would be more suited to output this data
+
 /**
  * Special page implementation for the KeyValue extension
  */
@@ -24,9 +26,14 @@ class SpecialKeyValue extends SpecialPage {
 	 */
 	public function __construct() {
 		parent::__construct( 'KeyValue' );
-		wfLoadExtensionMessages('KeyValue');
+		
+		// This function has been deprecated in 1.16, but needed for earlier versions.
+		if ( version_compare( $wgVersion, '1.16', '<' ) ) {
+			wfLoadExtensionMessages('KeyValue');
+		}
+		
 		global $wgUser;
-		$this->isSysOp = in_array( "sysop", $wgUser->getEffectiveGroups() );
+		$this->isSysOp = in_array( 'sysop', $wgUser->getEffectiveGroups() );
 	}
  
  	/**
