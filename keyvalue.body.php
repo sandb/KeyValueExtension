@@ -28,6 +28,7 @@ class SpecialKeyValue extends SpecialPage {
 		parent::__construct( 'KeyValue' );
 		
 		// This function has been deprecated in 1.16, but needed for earlier versions.
+		global $wgVersion;
 		if ( version_compare( $wgVersion, '1.16', '<' ) ) {
 			wfLoadExtensionMessages('KeyValue');
 		}
