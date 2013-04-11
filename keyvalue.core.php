@@ -259,7 +259,7 @@ class KeyValue{
 		$res = $dbr->select(
 			$dbr->tableName( self::tableName ),
 			array( 'article_id', 'kvcategory', 'kvkey', 'kvvalue' ),
-			array( "kvcategory = \"$category\"" ),
+			array( "kvcategory = '$category'" ),
 			'KeyValue::getByCategory($category)',
 			array( "ORDER BY" => "kvkey, kvvalue" )
 		);
